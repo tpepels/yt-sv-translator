@@ -1,0 +1,31 @@
+[openai]
+api_key = sk-...
+model = gpt-4o-mini
+temperature = 0.2
+base_prompt_path = prompts/base_prompt.txt
+
+[google]
+service_account_json = /path/to/service_account.json
+spreadsheet_name = Your Spreadsheet Name
+worksheet_name =
+character_col = A
+ukrainian_col = B
+english_col   = C
+swedish_col   = D
+status_col    =
+header_rows = 1
+
+[translation]
+context_window = 4
+max_glossary_terms = 40
+episode_synopsis =
+default_limit = 0
+preserve_cues = true
+approx_length_match = true
+
+[run]
+skip_translated = true
+dry_run = false
+
+[logging]
+level = INFO
