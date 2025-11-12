@@ -1,6 +1,6 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from .utils import col_to_index
 
 SCOPE = [
@@ -56,3 +56,14 @@ class SheetClient:
     def write_cell(self, ws, row: int, col, value: str):
         i = col_to_index(col)
         ws.update_cell(row, i, value)
+
+    def write_col_range(self, ws, col_letter: str, start_row: int, values: list[str], *, user_entered: bool = True):
+        """
+        Write a vertical slice using the worksheet-scoped range.
+        Example: E6:E10 (NO sheet name here).
+        """
+        end_row = start_row + len(values) - 1
+        rng = f"{col_letter}{start_row}:{col_letter}{end_row}"  # <— no ws.title here
+        payload = [[v] for v in values]  # column vector
+        value_input = "USER_ENTERED" if user_entered else "RAW"
+        ws.update(rng, payload, value_input_option=value_input)

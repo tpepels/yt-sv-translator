@@ -31,6 +31,83 @@ def pick_sheet_interactively(client: SheetClient):
             return titles[int(sel)-1]
         print("Invalid selection.")
 
+import time, random
+
+def is_rate_limit_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    # Cover common Google Sheets quota signals
+    return (
+        "429" in msg or
+        "quota exceeded" in msg or
+        "ratelimit" in msg or
+        "userRateLimitExceeded".lower() in msg or
+        "rateLimitExceeded".lower() in msg
+    )
+
+def write_cell_with_retry(client, ws, row, col, value, *,
+                          max_retries: int = 8,
+                          base_delay: float = 1.0,
+                          max_delay: float = 60.0,
+                          logger=None) -> bool:
+    """
+    Try to write a single cell. On 429/quota errors, retry with exponential backoff + jitter.
+    Returns True on success, False if all retries failed.
+    """
+    for attempt in range(max_retries):
+        try:
+            client.write_cell(ws, row, col, value)
+            return True
+        except Exception as e:
+            if is_rate_limit_error(e):
+                # Exponential backoff with jitter
+                sleep_s = min(max_delay, base_delay * (2 ** attempt)) + random.uniform(0, 0.5)
+                if logger:
+                    logger.warning(
+                        "Rate limited on write (row %s, col %s). Retry %d/%d in %.1fs. Error: %s",
+                        row, col, attempt + 1, max_retries, sleep_s, e
+                    )
+                time.sleep(sleep_s)
+                continue
+            else:
+                # Non-quota error → don't loop forever
+                if logger:
+                    logger.error("Row %s: write failed (non-quota): %s", row, e)
+                return False
+    if logger:
+        logger.error("Row %s: write failed after %d retries due to quota.", row, max_retries)
+    return False
+
+def write_range_with_retry(client, ws, col_letter, start_row, values, *,
+                           max_retries: int = 8,
+                           base_delay: float = 1.0,
+                           max_delay: float = 60.0,
+                           logger=None) -> bool:
+    for attempt in range(max_retries):
+        try:
+            client.write_col_range(ws, col_letter, start_row, values, user_entered=True)
+            # after a successful range write
+            time.sleep(0.2)
+            return True
+        except Exception as e:
+            if is_rate_limit_error(e):
+                sleep_s = min(max_delay, base_delay * (2 ** attempt)) + random.uniform(0, 0.5)
+                if logger:
+                    logger.warning(
+                        "Rate limited on range write (%s%d:%s%d, %d cells). Retry %d/%d in %.1fs. Error: %s",
+                        col_letter, start_row, col_letter, start_row + len(values) - 1,
+                        len(values), attempt + 1, max_retries, sleep_s, e
+                    )
+                time.sleep(sleep_s)
+                continue
+            else:
+                if logger:
+                    logger.error("Range write failed (non-quota): %s", e)
+                return False
+    if logger:
+        logger.error("Range write failed after %d retries due to quota.", max_retries)
+    return False
+
+
 def main():
     ap = build_cli()
     args = ap.parse_args()
@@ -166,7 +243,9 @@ def main():
                         logger.info("[dry-run] Row %d (%s) → %s", _r, ch, out_sv)
                     else:
                         try:
-                            client.write_cell(ws, _r, sv_col, out_sv)
+                            ok = write_cell_with_retry(client, ws, _r, sv_col, out_sv, logger=logger)
+                            if not ok:
+                                continue
                         except Exception as e3:
                             logger.error("Row %d: write failed: %s", _r, e3)
                             continue
@@ -176,20 +255,49 @@ def main():
                 return
 
             # Write results back in order
-            for (idx, (_r, ch, uk, en)) in enumerate(pending):
-                out_sv = out_list[idx] if idx < len(out_list) else ""
-                if dry_run:
-                    logger.info("[dry-run] Row %d (%s) → %s", _r, ch, out_sv)
+            # for (idx, (_r, ch, uk, en)) in enumerate(pending):
+            #     out_sv = out_list[idx] if idx < len(out_list) else ""
+            #     if dry_run:
+            #         logger.info("[dry-run] Row %d (%s) → %s", _r, ch, out_sv)
+            #     else:
+            #         try:
+            #             ok = write_cell_with_retry(client, ws, _r, sv_col, out_sv, logger=logger)
+            #             if not ok:
+            #                 continue
+            #         except Exception as e:
+            #             logger.error("Row %d: write failed: %s", _r, e)
+            #             continue
+            #     rctx.update(ch, uk, en, out_sv)
+            #     processed += 1
+
+            # pending = []
+
+            # Write results back (single range write)
+            first_row = pending[0][0]
+            batch_values = [out_list[i] if i < len(out_list) else "" for i in range(len(pending))]
+
+            if dry_run:
+                for i, (_r, ch, uk, en) in enumerate(pending):
+                    logger.info("[dry-run] Row %d (%s) → %s", _r, ch, batch_values[i])
+                    rctx.update(ch, uk, en, batch_values[i])
+                    processed += 1
+            else:
+                ok = write_range_with_retry(client, ws, sv_col, first_row, batch_values, logger=logger)
+                if not ok:
+                    logger.warning("Range write failed; falling back to per-cell writes.")
+                    for i, (_r, ch, uk, en) in enumerate(pending):
+                        v = batch_values[i]
+                        if write_cell_with_retry(client, ws, _r, sv_col, v, logger=logger):
+                            rctx.update(ch, uk, en, v)
+                            processed += 1
                 else:
-                    try:
-                        client.write_cell(ws, _r, sv_col, out_sv)
-                    except Exception as e:
-                        logger.error("Row %d: write failed: %s", _r, e)
-                        continue
-                rctx.update(ch, uk, en, out_sv)
-                processed += 1
+                    for i, (_r, ch, uk, en) in enumerate(pending):
+                        rctx.update(ch, uk, en, batch_values[i])
+                        processed += 1
 
             pending = []
+
+
 
         for r, ch, uk, en, sv in rows:
             if not (uk or en):
