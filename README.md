@@ -1,6 +1,6 @@
 # YouTube → Swedish Line-by-Line Translator
 
-This tool helps translate a bilingual script (Ukrainian + English) into Swedish, **line by line**, while keeping track of **who is speaking**.  
+This tool helps translate a bilingual script (russian + English) into Swedish, **line by line**, while keeping track of **who is speaking**.  
 You work in **Google Sheets**. The tool reads each line, asks the OpenAI API to translate it, and writes the Swedish translation back into the sheet.
 
 The translation is **context-aware**:
@@ -30,7 +30,7 @@ If the OpenAI or Google permissions are not yet configured, follow the **Onboard
 
 Your sheet must contain **one line of dialogue per row**, like this:
 
-| Character | Ukrainian | English | Swedish |
+| Character | russian | English | Swedish |
 |---|---|---|---|
 | Olena | Добрий день | Good afternoon | *(tool fills this)* |
 | Serhiy | Так, я згоден | Yes, I agree | *(tool fills this)* |
@@ -77,7 +77,7 @@ service_account_json = /path/to/your-google-service-account.json
 spreadsheet_name = Your Sheet Name
 
 character_col = A
-ukrainian_col = B
+russian_col = B
 english_col   = C
 swedish_col   = D
 ```
@@ -164,7 +164,7 @@ For example, Olena will consistently sound like Olena.
 ## 8. Recommended Workflow
 
 1. Paste script lines into Google Sheet.
-2. Keep **Character**, **Ukrainian**, **English** columns filled.
+2. Keep **Character**, **russian**, **English** columns filled.
 3. Run the translator.
 4. Review Swedish output and adjust if needed.
 5. Record narration.

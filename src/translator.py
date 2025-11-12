@@ -1,6 +1,6 @@
+from openai import OpenAI
 from dataclasses import dataclass
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
-from openai import OpenAI
 
 SYSTEM_TEMPLATE = """{base_prompt}
 
@@ -34,7 +34,7 @@ class LineTranslator:
         self.cfg = cfg
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=15))
-    def translate(self, character: str, uk: str, en: str, context_block: str, episode_synopsis: str) -> str:
+    def translate(self, character, uk, en, context_block, episode_synopsis):
         system_text = SYSTEM_TEMPLATE.format(
             base_prompt=self.cfg.base_prompt,
             episode_synopsis=episode_synopsis or "(none)",
@@ -45,12 +45,20 @@ class LineTranslator:
             uk=uk or "(empty)",
             en=en or "(empty)",
         )
-        resp = self.client.chat.completions.create(
-            model=self.cfg.model,
-            temperature=self.cfg.temperature,
-            messages=[
-                {"role": "system", "content": system_text},
-                {"role": "user", "content": user_text},
-            ],
-        )
-        return resp.choices[0].message.content.strip()
+        try:
+            resp = self.client.responses.create(
+                model=self.cfg.model,
+                # temperature=self.cfg.temperature,
+                input=[
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": user_text},
+                ],
+            )
+        except Exception as e:
+            # openai-python raises rich exceptions; print full body
+            try:
+                print(getattr(e, "response", None).json())
+            except Exception:
+                print(str(e))
+            raise
+        return resp.output_text.strip()

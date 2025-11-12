@@ -51,7 +51,7 @@ def main():
     worksheet_name = args.sheet or cfgp.get("google", "worksheet_name", fallback=None)
 
     ch_col = cfgp.get("google", "character_col", fallback="A")
-    uk_col = cfgp.get("google", "ukrainian_col", fallback="B")
+    uk_col = cfgp.get("google", "russian_col", fallback="B")
     en_col = cfgp.get("google", "english_col", fallback="C")
     sv_col = cfgp.get("google", "swedish_col", fallback="D")
     header_rows = cfgp.getint("google", "header_rows", fallback=1)
