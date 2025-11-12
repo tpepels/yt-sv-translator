@@ -146,7 +146,7 @@ def main():
 
     # OpenAI
     api_key = cfgp.get("openai", "api_key", fallback=os.getenv("OPENAI_API_KEY"))
-    model = cfgp.get("openai", "model", fallback="gpt-4o-mini")
+    model = cfgp.get("openai", "model", fallback="gpt-5-mini")
     base_prompt_path = cfgp.get("openai", "base_prompt_path", fallback="prompts/base_prompt.txt")
 
     # Run flags

@@ -16,7 +16,6 @@ You may use the context below to resolve references and keep terms consistent.
 # Single-line template (unchanged)
 USER_TEMPLATE = """Translate the following line into Swedish.
 Output Swedish only. Do not include the character name in your output, only output what the character says.
-
 Character: {character}
 Russian: {uk}
 English: {en}
