@@ -23,7 +23,6 @@ English: {en}
 class TranslatorConfig:
     api_key: str
     model: str
-    temperature: float = 0.2
     base_prompt: str = ""
     preserve_cues: bool = True
     approx_length_match: bool = True
@@ -48,7 +47,6 @@ class LineTranslator:
         try:
             resp = self.client.responses.create(
                 model=self.cfg.model,
-                # temperature=self.cfg.temperature,
                 input=[
                     {"role": "system", "content": system_text},
                     {"role": "user", "content": user_text},

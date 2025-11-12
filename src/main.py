@@ -65,7 +65,6 @@ def main():
 
     api_key = cfgp.get("openai", "api_key", fallback=os.getenv("OPENAI_API_KEY"))
     model = cfgp.get("openai", "model", fallback="gpt-4o-mini")
-    temperature = cfgp.getfloat("openai", "temperature", fallback=0.2)
     base_prompt_path = cfgp.get("openai", "base_prompt_path", fallback="prompts/base_prompt.txt")
 
     skip_translated = cfgp.getboolean("run", "skip_translated", fallback=True)
@@ -84,7 +83,7 @@ def main():
     episode_synopsis = read_file_or_default(episode_synopsis_path, "")
 
     translator = LineTranslator(TranslatorConfig(
-        api_key=api_key, model=model, temperature=temperature,
+        api_key=api_key, model=model,
         base_prompt=base_prompt_default, preserve_cues=preserve_cues,
         approx_length_match=approx_length_match
     ))
