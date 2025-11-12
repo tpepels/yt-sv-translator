@@ -128,9 +128,7 @@ def main():
     spreadsheet_id = cfgp.get("google", "spreadsheet_id", fallback=None)
     worksheet_name = args.sheet or cfgp.get("google", "worksheet_name", fallback=None)
 
-    # Columns (keeping your 'russian_col' naming for compatibility)
     ch_col = cfgp.get("google", "character_col", fallback="A")
-    uk_col = cfgp.get("google", "russian_col", fallback="B")
     en_col = cfgp.get("google", "english_col", fallback="C")
     sv_col = cfgp.get("google", "swedish_col", fallback="D")
     header_rows = cfgp.getint("google", "header_rows", fallback=1)
@@ -181,25 +179,25 @@ def main():
         worksheet_name = pick_sheet_interactively(client)
     ws = client.worksheet(worksheet_name)
 
-    rows = client.read_rows(ws, start_row, ch_col, uk_col, en_col, sv_col, header_rows, limit=limit)
+    rows = client.read_rows(ws, start_row, ch_col, en_col, sv_col, header_rows, limit=limit)
     logger.info("Processing %d row(s) in sheet '%s'", len(rows), worksheet_name)
 
     processed = 0
 
     if batch_size <= 1:
         # ---------- Original per-line path (unchanged) ----------
-        for r, ch, uk, en, sv in rows:
-            if not (uk or en):
+        for r, ch, en, sv in rows:
+            if not en:
                 continue
 
             if skip_translated and (not force) and sv.strip():
-                rctx.update(ch, uk, en, sv)
+                rctx.update(ch, en, sv)
                 continue
 
             context_block = rctx.build_context_block()
 
             try:
-                out_sv = translator.translate(ch, uk, en, context_block, episode_synopsis)
+                out_sv = translator.translate(ch, en, context_block, episode_synopsis)
             except Exception as e:
                 logger.error("Row %d: translation failed: %s", r, e)
                 continue
@@ -213,12 +211,12 @@ def main():
                     logger.error("Row %d: write failed: %s", r, e)
                     continue
 
-            rctx.update(ch, uk, en, out_sv)
+            rctx.update(ch, en, out_sv)
             processed += 1
 
     else:
         # ---------- NEW: batched path ----------
-        pending = []  # list of (row_index, ch, uk, en)
+        pending = []  # list of (row_index, ch, en)
         def flush_batch():
             nonlocal processed, pending
             if not pending:
@@ -227,15 +225,15 @@ def main():
             context_block = rctx.build_context_block()
 
             # Prepare items in the required shape
-            items = [(ch, uk, en) for (_r, ch, uk, en) in pending]
+            items = [(ch, en) for (_r, ch, en) in pending]
             try:
                 out_list = translator.translate_batch(items, context_block, episode_synopsis)
             except Exception as e:
                 # On failure, fall back to single-line to salvage progress
                 logger.warning("Batch failed (%d lines). Falling back to single-line. Error: %s", len(pending), e)
-                for (_r, ch, uk, en) in pending:
+                for (_r, ch, en) in pending:
                     try:
-                        out_sv = translator.translate(ch, uk, en, context_block, episode_synopsis)
+                        out_sv = translator.translate(ch, en, context_block, episode_synopsis)
                     except Exception as e2:
                         logger.error("Row %d: translation failed: %s", _r, e2)
                         continue
@@ -249,64 +247,46 @@ def main():
                         except Exception as e3:
                             logger.error("Row %d: write failed: %s", _r, e3)
                             continue
-                    rctx.update(ch, uk, en, out_sv)
+                    rctx.update(ch, en, out_sv)
                     processed += 1
                 pending = []
                 return
-
-            # Write results back in order
-            # for (idx, (_r, ch, uk, en)) in enumerate(pending):
-            #     out_sv = out_list[idx] if idx < len(out_list) else ""
-            #     if dry_run:
-            #         logger.info("[dry-run] Row %d (%s) → %s", _r, ch, out_sv)
-            #     else:
-            #         try:
-            #             ok = write_cell_with_retry(client, ws, _r, sv_col, out_sv, logger=logger)
-            #             if not ok:
-            #                 continue
-            #         except Exception as e:
-            #             logger.error("Row %d: write failed: %s", _r, e)
-            #             continue
-            #     rctx.update(ch, uk, en, out_sv)
-            #     processed += 1
-
-            # pending = []
 
             # Write results back (single range write)
             first_row = pending[0][0]
             batch_values = [out_list[i] if i < len(out_list) else "" for i in range(len(pending))]
 
             if dry_run:
-                for i, (_r, ch, uk, en) in enumerate(pending):
+                for i, (_r, ch, en) in enumerate(pending):
                     logger.info("[dry-run] Row %d (%s) → %s", _r, ch, batch_values[i])
-                    rctx.update(ch, uk, en, batch_values[i])
+                    rctx.update(ch, en, batch_values[i])
                     processed += 1
             else:
                 ok = write_range_with_retry(client, ws, sv_col, first_row, batch_values, logger=logger)
                 if not ok:
                     logger.warning("Range write failed; falling back to per-cell writes.")
-                    for i, (_r, ch, uk, en) in enumerate(pending):
+                    for i, (_r, ch, en) in enumerate(pending):
                         v = batch_values[i]
                         if write_cell_with_retry(client, ws, _r, sv_col, v, logger=logger):
-                            rctx.update(ch, uk, en, v)
+                            rctx.update(ch, en, v)
                             processed += 1
                 else:
-                    for i, (_r, ch, uk, en) in enumerate(pending):
-                        rctx.update(ch, uk, en, batch_values[i])
+                    for i, (_r, ch, en) in enumerate(pending):
+                        rctx.update(ch, en, batch_values[i])
                         processed += 1
 
             pending = []
 
 
 
-        for r, ch, uk, en, sv in rows:
-            if not (uk or en):
+        for r, ch, en, sv in rows:
+            if not en:
                 continue
             if skip_translated and (not force) and sv.strip():
-                rctx.update(ch, uk, en, sv)
+                rctx.update(ch, en, sv)
                 continue
 
-            pending.append((r, ch, uk, en))
+            pending.append((r, ch, en))
             if len(pending) >= batch_size:
                 flush_batch()
 

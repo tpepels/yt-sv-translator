@@ -28,9 +28,8 @@ class SheetClient:
             return self.sh.worksheet(title)
         return self.sh.get_worksheet(0)
 
-    def read_rows(self, ws, start_row: int, ch_col, uk_col, en_col, sv_col, header_rows: int, limit: int = 0):
+    def read_rows(self, ws, start_row: int, ch_col, en_col, sv_col, header_rows: int, limit: int = 0):
         ch_i = col_to_index(ch_col)
-        uk_i = col_to_index(uk_col)
         en_i = col_to_index(en_col)
         sv_i = col_to_index(sv_col)
 
@@ -44,10 +43,9 @@ class SheetClient:
             def cell(i):
                 return row[i-1] if i-1 < len(row) else ""
             ch = cell(ch_i).strip()
-            uk = cell(uk_i).strip()
             en = cell(en_i).strip()
             sv = cell(sv_i).strip()
-            rows.append((r, ch, uk, en, sv))
+            rows.append((r, ch, en, sv))
             count += 1
             if limit and count >= limit:
                 break

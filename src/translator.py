@@ -17,8 +17,7 @@ You may use the context below to resolve references and keep terms consistent.
 USER_TEMPLATE = """Translate the following line into Swedish.
 Output Swedish only. Do not include the character name in your output, only output what the character says.
 Character: {character}
-Russian: {uk}
-English: {en}
+{en}
 """
 
 # Batch template (new)
@@ -46,7 +45,7 @@ class LineTranslator:
     # Existing single-line method
     # ----------------------------
     @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=15))
-    def translate(self, character, uk, en, context_block, episode_synopsis):
+    def translate(self, character, en, context_block, episode_synopsis):
         system_text = SYSTEM_TEMPLATE.format(
             base_prompt=self.cfg.base_prompt,
             episode_synopsis=episode_synopsis or "(none)",
@@ -54,7 +53,6 @@ class LineTranslator:
         )
         user_text = USER_TEMPLATE.format(
             character=character or "(unknown)",
-            uk=uk or "(empty)",
             en=en or "(empty)",
         )
         try:
@@ -80,7 +78,7 @@ class LineTranslator:
     @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=15))
     def translate_batch(
         self,
-        items: Sequence[Tuple[str, str, str]],  # [(character, uk, en), ...]
+        items: Sequence[Tuple[str, str]],  # [(character, en), ...]
         context_block: str,
         episode_synopsis: str,
     ) -> List[str]:
@@ -88,7 +86,7 @@ class LineTranslator:
         Translate multiple lines in a single request.
         Returns a list of Swedish strings in the same order as inputs.
 
-        items: sequence of (character, uk, en)
+        items: sequence of (character, en)
         """
         if not items:
             return []
@@ -101,17 +99,14 @@ class LineTranslator:
 
         # Build the numbered block
         # 1) Character: X
-        #    Russian: ...
-        #    English: ...
+        #    Text to translate...
         numbered = []
-        for i, (ch, uk, en) in enumerate(items, start=1):
+        for i, (ch, en) in enumerate(items, start=1):
             ch = ch or "(unknown)"
-            uk = uk or "(empty)"
             en = en or "(empty)"
             numbered.append(
                 f"{i}) Character: {ch}\n"
-                f"   Russian: {uk}\n"
-                f"   English: {en}"
+                f"   {en}"
             )
         items_block = "\n\n".join(numbered)
 
